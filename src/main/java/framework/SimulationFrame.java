@@ -65,9 +65,6 @@ public abstract class SimulationFrame extends JFrame {
     /** The time stamp for the last iteration */
     private long last;
 
-    /** Tracking for the step number when in manual stepping mode */
-    private long stepNumber;
-
     /** Camera to track offset/scale of rendering */
     private final Camera camera = new Camera();
 
@@ -97,7 +94,7 @@ public abstract class SimulationFrame extends JFrame {
         });
 
         // create the size of the window
-        Dimension size = new Dimension(1600, 1000);
+        Dimension size = new Dimension(1600, 400);
 
         // setup canvas to paint on
         this.canvas.setPreferredSize(size);
@@ -147,7 +144,7 @@ public abstract class SimulationFrame extends JFrame {
                     // Thread.sleep(long) here to give the
                     // CPU some breathing room
                     try {
-                        Thread.sleep(5);
+                        Thread.sleep(17);
                     } catch (InterruptedException e) {}
                 }
             }
@@ -189,8 +186,12 @@ public abstract class SimulationFrame extends JFrame {
         this.render(g);
         g.setTransform(tx);
 
+        this.preWorldUpdate();
+
         // update the World
-        this.world.update(elapsedTime);
+        this.world.update(1);
+
+        this.postWorldUpdate();
 
         // dispose of the graphics object
         g.dispose();
@@ -205,6 +206,10 @@ public abstract class SimulationFrame extends JFrame {
         // (on Linux, this fixes event queue problems)
         Toolkit.getDefaultToolkit().sync();
     }
+
+    protected abstract void postWorldUpdate();
+
+    protected abstract void preWorldUpdate();
 
     /**
      * Performs any transformations to the graphics.

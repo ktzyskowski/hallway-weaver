@@ -145,6 +145,16 @@ public final class Billiards extends SimulationFrame {
         }
     }
 
+    @Override
+    protected void postWorldUpdate() {
+
+    }
+
+    @Override
+    protected void preWorldUpdate() {
+
+    }
+
     /**
      * Entry point for the example application.
      * @param args command line arguments
