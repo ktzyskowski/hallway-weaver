@@ -23,12 +23,12 @@ public class QLearningAgent implements PlanningAgent {
   private final double epsilon;  // exploitation factor
   private final double episodes; // number of training episodes
 
-  private static final int REWARD_NEUTRAL = -1;     // reward for surviving an action
-  private static final int REWARD_WIN     =  1_000; // reward for reaching the goal state
-  private static final int REWARD_LOSE    = -1_000; // reward for touching an obstacle
+  private static final double REWARD_NEUTRAL = -0.1;     // reward for surviving an action
+  private static final double REWARD_WIN     =  1_000; // reward for reaching the goal state
+  private static final double REWARD_LOSE    = -100; // reward for touching an obstacle
 
-  private static final int    NUM_RAYS = 100; // number of radar rays
-  private static final double LEN_RAYS = 5.0; // length of each radar ray
+  private static final int    NUM_RAYS = 120; // number of radar rays
+  private static final double LEN_RAYS = 15.0; // length of each radar ray
 
   private final Map<String, Double> weights;
 
@@ -169,7 +169,7 @@ public class QLearningAgent implements PlanningAgent {
       World nextState = state.generateNextState(action);
 
       // calculate the reward from the next state
-      int reward = REWARD_NEUTRAL;
+      double reward = REWARD_NEUTRAL;
       if (nextState.isWin()) {
         reward = REWARD_WIN;
       } else if (nextState.isLose()) {
@@ -198,7 +198,7 @@ public class QLearningAgent implements PlanningAgent {
    * @param nextState the new state
    * @param reward    the reward received
    */
-  private void update(World state, Force action, World nextState, int reward) {
+  private void update(World state, Force action, World nextState, double reward) {
     Map<String, Double> features = this.extractFeatures(state);
     double sample = reward
         + (this.gamma * Arrays.stream(nextState.getActions())

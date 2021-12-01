@@ -300,7 +300,7 @@ public final class Simulation extends JFrame {
    */
   public static void main(String[] args) {
     // create and prepare planning agent
-    PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.9, 10_000);
+    PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.4, 2500);
     //KeyboardAgent agent = new KeyboardAgent();
 
     agent.init(); // optional line if an agent needs to prepare itself before being used
