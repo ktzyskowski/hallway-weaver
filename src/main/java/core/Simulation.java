@@ -1,5 +1,6 @@
 package core;
 
+import core.agents.KeyboardAgent;
 import core.agents.PlanningAgent;
 import core.agents.QLearningAgent;
 import core.agents.RandomAgent;
@@ -299,12 +300,14 @@ public final class Simulation extends JFrame {
    */
   public static void main(String[] args) {
     // create and prepare planning agent
-    PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.9, 100_000);
+    PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.9, 10_000);
+    //KeyboardAgent agent = new KeyboardAgent();
 
     agent.init(); // optional line if an agent needs to prepare itself before being used
 
     // run simulation with agent
     Simulation simulation = new Simulation("Hallway Weaver", 2.5, agent);
+    //simulation.addKeyListener(agent);
     simulation.run();
   }
 }

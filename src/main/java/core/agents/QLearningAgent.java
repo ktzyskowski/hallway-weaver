@@ -2,6 +2,9 @@ package core.agents;
 
 import core.world.World;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
 import org.dyn4j.dynamics.Force;
@@ -27,7 +30,7 @@ public class QLearningAgent implements PlanningAgent {
   private static final int    NUM_RAYS = 100; // number of radar rays
   private static final double LEN_RAYS = 5.0; // length of each radar ray
 
-  private final double[] weights;
+  private final Map<String, Double> weights;
 
   /**
    * Creates a new Q learning agent from starting weights.
@@ -38,7 +41,7 @@ public class QLearningAgent implements PlanningAgent {
    * @param episodes the number of training episodes to conduct before evaluation
    * @param weights  the starting weights
    */
-  public QLearningAgent(double alpha, double gamma, double epsilon, double episodes, double[] weights) {
+  public QLearningAgent(double alpha, double gamma, double epsilon, double episodes, Map<String, Double> weights) {
     this.alpha = alpha;
     this.gamma = gamma;
     this.epsilon = epsilon;
@@ -55,12 +58,11 @@ public class QLearningAgent implements PlanningAgent {
    * @param episodes the number of training episodes to conduct before evaluation
    */
   public QLearningAgent(double alpha, double gamma, double epsilon, double episodes) {
-    this(alpha, gamma, epsilon, episodes, new double[4 + NUM_RAYS]);
+    this(alpha, gamma, epsilon, episodes, new HashMap<>());
   }
 
   @Override
   public Force chooseAction(World state) {
-    double[] features = this.extractFeatures(state);
     Force[] actions = state.getActions();
 
     Force bestAction = actions[0];
@@ -78,13 +80,16 @@ public class QLearningAgent implements PlanningAgent {
 
   @Override
   public void init() {
-    System.out.println("Begin training");
     for (int episode = 1; episode <= this.episodes; episode++) {
-      System.out.printf("Before episode %d%n", episode);
+      System.out.printf("Start episode %d%n", episode);
       this.train();
-      System.out.printf("After episode %d%n", episode);
+
+      // print weights
+//      for (String key : this.weights.keySet()) {
+//        System.out.printf("%s: %f,", key, this.weights.get(key));
+//        System.out.println();
+//      }
     }
-    System.out.println("End training");
   }
 
   /**
@@ -99,24 +104,23 @@ public class QLearningAgent implements PlanningAgent {
    * @param state the world state
    * @return the feature representation
    */
-  private double[] extractFeatures(World state) {
-    double[] features = new double[4 + NUM_RAYS];
+  private Map<String, Double> extractFeatures(World state) {
+    Map<String, Double> features = new HashMap<>();
 
     // position and velocity
     Vector2 playerPosition = state.player.getWorldCenter();
-    features[0] = playerPosition.x;
-    features[1] = playerPosition.y;
-    features[2] = state.player.getLinearVelocity().x;
-    features[3] = state.player.getLinearVelocity().y;
+    features.put(String.format("player.x.%d", (int) playerPosition.x), 1.0);
+    features.put(String.format("player.vx.%d", (int) state.player.getLinearVelocity().x), 1.0);
+    features.put(String.format("player.vy.%d", (int) state.player.getLinearVelocity().y), 1.0);
 
     // radar readings
     for (int count = 0; count < NUM_RAYS; count++) {
       Ray ray = new Ray(playerPosition, 2 * Math.PI * count / NUM_RAYS);
-      RaycastResult<Body, BodyFixture> result = state.raycastClosest(ray, LEN_RAYS, new DetectFilter<Body, BodyFixture>(true, true, null));
+      RaycastResult<Body, BodyFixture> result = state.raycastClosest(ray, LEN_RAYS, new DetectFilter<>(true, true, null));
       if (result == null) {
-        features[4 + count] = LEN_RAYS;
+        features.put(String.format("ray.%d", count), 1.0);
       } else {
-        features[4 + count] = result.getRaycast().getDistance();
+        features.put(String.format("ray.%d", count), result.getRaycast().getDistance() / LEN_RAYS);
       }
     }
 
@@ -130,13 +134,14 @@ public class QLearningAgent implements PlanningAgent {
    * @return the Q value
    */
   private double qValue(World state, Force action) {
-    double[] features = this.extractFeatures(state);
+    Map<String, Double> features = this.extractFeatures(state);
 
     double qValue = 0.0;
-    for (int index = 0; index < features.length; index++) {
-      qValue += features[index] * weights[index];
+    for (Entry<String, Double> pair : features.entrySet()) {
+      qValue += (pair.getValue() * this.weights.getOrDefault(pair.getKey(), 0.0));
     }
 
+//    System.out.printf("Q: %f%n", qValue);
     return qValue;
   }
 
@@ -145,7 +150,9 @@ public class QLearningAgent implements PlanningAgent {
    */
   private void train() {
     World state = new World();
+    int step = 0;
     while (!state.isTerminal()) {
+      step++;
 
       // choose an action, either random (exploration) or from our policy (exploitation)
       Force[] actions = state.getActions();
@@ -173,6 +180,14 @@ public class QLearningAgent implements PlanningAgent {
       this.update(state, action, nextState, reward);
       state = nextState;
     }
+
+    System.out.printf("> took %d samples%n", step);
+    if (state.isWin()) {
+      System.out.println("> won :)");
+    } else {
+      System.out.println("> lost :(");
+    }
+    System.out.printf("> final player.x: %d%n", (int) state.player.getWorldCenter().x);
   }
 
   /**
@@ -184,13 +199,14 @@ public class QLearningAgent implements PlanningAgent {
    * @param reward    the reward received
    */
   private void update(World state, Force action, World nextState, int reward) {
-    double[] features = this.extractFeatures(state);
+    Map<String, Double> features = this.extractFeatures(state);
     double sample = reward
         + (this.gamma * Arrays.stream(nextState.getActions())
         .map(nextAction -> this.qValue(nextState, nextAction)).max(Double::compareTo).get());
     double difference = sample - this.qValue(state, action);
-    for (int index = 0; index < this.weights.length; index++) {
-      weights[index] = weights[index] + alpha * difference * features[index];
+    for (String key : features.keySet()) {
+      double updatedWeight = this.weights.getOrDefault(key, 0.0) + alpha * difference * features.get(key);
+      this.weights.put(key, updatedWeight);
     }
   }
 }
