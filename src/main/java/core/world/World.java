@@ -58,7 +58,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
 
     // create the player
     this.player = player.toBody();
-    this.player.addFixture(Geometry.createCircle(1.0), 1.0, 1.0, 1.0);
+    this.player.addFixture(Geometry.createCircle(1.0), 1.0, 0.0, 1.0);
     this.player.setLinearDamping(2);
     this.player.setMass(MassType.NORMAL);
     this.addBody(this.player);
