@@ -3,8 +3,11 @@ package core.world;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
 import org.dyn4j.dynamics.Force;
@@ -22,11 +25,11 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
   // =====   Configuration   ===== //
   public static final double WORLD_HEIGHT = 60.0;
   public static final double WORLD_WIDTH = 360.0;
-  public static final double TIME_PER_UPDATE = 1.0;
+  public static final int NUM_STEPS = 5;
   public static final int OBSTACLE_COUNT = 100;
   public static final double OBSTACLE_SPEED = 15.0;
 
-  public static final double FORCE_MAGNITUDE = 500.0;
+  public static final double FORCE_MAGNITUDE = 2_000.0;
   public static final Force FORCE_UP = new Force(0, FORCE_MAGNITUDE);
   public static final Force FORCE_DOWN = new Force(0, -FORCE_MAGNITUDE);
   public static final Force FORCE_LEFT = new Force(-FORCE_MAGNITUDE, 0);
@@ -61,7 +64,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
     this.addBody(this.player);
 
     // copy the obstacles
-    this.obstacles = new HashMap<>();
+    this.obstacles = new LinkedHashMap<>();
     for (BodyInfo info : obstacles.keySet()) {
       Body obstacle = info.toBody();
       obstacle.addFixture(Geometry.createCircle(1.0), 1.0, 0.0, 1.0);
@@ -176,7 +179,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
 
     // apply the update and update the world
     nextState.player.applyForce(action);
-    nextState.update(TIME_PER_UPDATE);
+    nextState.step(NUM_STEPS);
 
     return nextState;
   }
@@ -272,5 +275,52 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
       body.setLinearVelocity(this.velocityX, this.velocityY);
       return body;
     }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == this) {
+      return true;
+    } else if (!(o instanceof World)) {
+      return false;
+    } else {
+      World that = (World) o;
+
+      boolean samePlayers = this.player.getWorldCenter().equals(that.player.getWorldCenter())
+          && this.player.getLinearVelocity().equals(that.player.getLinearVelocity());
+
+      boolean sameObstacles = true;
+      Iterator<Body> thisObstacles = this.obstacles.keySet().iterator();
+      Iterator<Body> thatObstacles = this.obstacles.keySet().iterator();
+      while (thisObstacles.hasNext()) {
+        Body thisObstacle = thisObstacles.next();
+        Body thatObstacle = thatObstacles.next();
+        if (!thisObstacle.getWorldCenter().equals(thatObstacle.getWorldCenter())
+        || !thisObstacle.getLinearVelocity().equals(thatObstacle.getLinearVelocity())) {
+          sameObstacles = false;
+          break;
+        }
+      }
+
+      boolean sameStatus = false;
+      if (this.isWin() && !that.isWin()) {
+        sameStatus = true;
+      } else if (this.isLose() && that.isLose()) {
+        sameStatus = true;
+      } else if (!this.isTerminal() && !that.isTerminal()) {
+        sameStatus = true;
+      }
+
+      return samePlayers && sameObstacles && sameStatus;
+    }
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        this.won,
+        this.player.getWorldCenter(),
+        this.player.getLinearVelocity(),
+        this.obstacles.hashCode());
   }
 }

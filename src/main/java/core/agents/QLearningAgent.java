@@ -104,8 +104,19 @@ public class QLearningAgent implements PlanningAgent {
    * @param state the world state
    * @return the feature representation
    */
-  private Map<String, Double> extractFeatures(World state) {
+  private Map<String, Double> extractFeatures(World state, Force action) {
     Map<String, Double> features = new HashMap<>();
+
+    // action
+    if (action == World.FORCE_UP) {
+      features.put("force.up", 1.0);
+    } else if (action == World.FORCE_DOWN) {
+      features.put("force.down", 1.0);
+    } else if (action == World.FORCE_LEFT) {
+      features.put("force.left", 1.0);
+    } else if (action == World.FORCE_RIGHT) {
+      features.put("force.right", 1.0);
+    }
 
     // position and velocity
     Vector2 playerPosition = state.player.getWorldCenter();
@@ -134,7 +145,7 @@ public class QLearningAgent implements PlanningAgent {
    * @return the Q value
    */
   private double qValue(World state, Force action) {
-    Map<String, Double> features = this.extractFeatures(state);
+    Map<String, Double> features = this.extractFeatures(state, action);
 
     double qValue = 0.0;
     for (Entry<String, Double> pair : features.entrySet()) {
@@ -199,7 +210,7 @@ public class QLearningAgent implements PlanningAgent {
    * @param reward    the reward received
    */
   private void update(World state, Force action, World nextState, int reward) {
-    Map<String, Double> features = this.extractFeatures(state);
+    Map<String, Double> features = this.extractFeatures(state, action);
     double sample = reward
         + (this.gamma * Arrays.stream(nextState.getActions())
         .map(nextAction -> this.qValue(nextState, nextAction)).max(Double::compareTo).get());

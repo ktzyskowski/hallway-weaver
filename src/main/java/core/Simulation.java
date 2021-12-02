@@ -79,7 +79,7 @@ public final class Simulation extends JFrame {
     });
 
     // create the size of the window
-    Dimension size = new Dimension(940, 200);
+    Dimension size = new Dimension(1880, 400);
 
     // setup canvas to paint on
     this.canvas.setPreferredSize(size);
@@ -92,6 +92,7 @@ public final class Simulation extends JFrame {
 
     // size everything
     this.pack();
+    this.setLocationRelativeTo(null);
   }
 
   /**
@@ -119,7 +120,7 @@ public final class Simulation extends JFrame {
           // Thread.sleep(long) here to give the
           // CPU some breathing room
           try {
-            Thread.sleep(20);
+            Thread.sleep(1000);
           } catch (InterruptedException e) {}
         }
       }
@@ -301,13 +302,13 @@ public final class Simulation extends JFrame {
   public static void main(String[] args) {
     // create and prepare planning agent
     PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.9, 10_000);
-    //KeyboardAgent agent = new KeyboardAgent();
+    // KeyboardAgent agent = new KeyboardAgent();
 
     agent.init(); // optional line if an agent needs to prepare itself before being used
 
     // run simulation with agent
-    Simulation simulation = new Simulation("Hallway Weaver", 2.5, agent);
-    //simulation.addKeyListener(agent);
+    Simulation simulation = new Simulation("Hallway Weaver", 5, agent);
+    // simulation.addKeyListener(agent);
     simulation.run();
   }
 }
