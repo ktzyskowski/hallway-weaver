@@ -27,8 +27,8 @@ public class QLearningAgent implements PlanningAgent {
   private static final int REWARD_WIN     =  1_000; // reward for reaching the goal state
   private static final int REWARD_LOSE    = -1_000; // reward for touching an obstacle
 
-  private static final int    NUM_RAYS = 100; // number of radar rays
-  private static final double LEN_RAYS = 5.0; // length of each radar ray
+  private static final int    NUM_RAYS = 30;  // number of radar rays
+  private static final double LEN_RAYS = 10.0; // length of each radar ray
 
   private final Map<String, Double> weights;
 
@@ -125,13 +125,27 @@ public class QLearningAgent implements PlanningAgent {
     features.put(String.format("player.vy.%d", (int) state.player.getLinearVelocity().y), 1.0);
 
     // radar readings
+    World nextState = state.generateNextState(action);
     for (int count = 0; count < NUM_RAYS; count++) {
       Ray ray = new Ray(playerPosition, 2 * Math.PI * count / NUM_RAYS);
+      Ray nextRay = new Ray(nextState.player.getWorldCenter(), 2 * Math.PI * count / NUM_RAYS);
       RaycastResult<Body, BodyFixture> result = state.raycastClosest(ray, LEN_RAYS, new DetectFilter<>(true, true, null));
+      RaycastResult<Body, BodyFixture> nextResult = nextState.raycastClosest(nextRay, LEN_RAYS, new DetectFilter<>(true, true, null));
       if (result == null) {
-        features.put(String.format("ray.%d", count), 1.0);
+        features.put(String.format("ray.s.%d", count), 1.0);
+
+        if (nextResult != null) { // next ray is not maxed out
+          features.put(String.format("ray.t.%d", count), nextResult.getRaycast().getDistance() / LEN_RAYS - 1.0);
+        }
+        // no else, since both null means 0
       } else {
-        features.put(String.format("ray.%d", count), result.getRaycast().getDistance() / LEN_RAYS);
+        features.put(String.format("ray.s.%d", count), result.getRaycast().getDistance() / LEN_RAYS);
+
+        if (nextResult == null) { // next ray is maxed out
+          features.put(String.format("ray.t.%d", count), result.getRaycast().getDistance() / LEN_RAYS - 1.0);
+        } else { // neither are maxed out
+          features.put(String.format("ray.t.%d", count), nextResult.getRaycast().getDistance() / LEN_RAYS - result.getRaycast().getDistance() / LEN_RAYS);
+        }
       }
     }
 
@@ -140,6 +154,7 @@ public class QLearningAgent implements PlanningAgent {
 
   /**
    * Computes the Q value of the given state and action pair.
+   *
    * @param state  the world state
    * @param action the action
    * @return the Q value
@@ -152,7 +167,7 @@ public class QLearningAgent implements PlanningAgent {
       qValue += (pair.getValue() * this.weights.getOrDefault(pair.getKey(), 0.0));
     }
 
-//    System.out.printf("Q: %f%n", qValue);
+    //System.out.printf("Q: %f%n", qValue);
     return qValue;
   }
 
@@ -181,6 +196,11 @@ public class QLearningAgent implements PlanningAgent {
 
       // calculate the reward from the next state
       int reward = REWARD_NEUTRAL;
+
+      // we want to reward going to the right towards the goal
+      if (action == World.FORCE_RIGHT)
+        reward *= -1;
+
       if (nextState.isWin()) {
         reward = REWARD_WIN;
       } else if (nextState.isLose()) {
@@ -218,6 +238,8 @@ public class QLearningAgent implements PlanningAgent {
     for (String key : features.keySet()) {
       double updatedWeight = this.weights.getOrDefault(key, 0.0) + alpha * difference * features.get(key);
       this.weights.put(key, updatedWeight);
+      //System.out.printf("%f ", updatedWeight);
     }
+    //System.out.println();
   }
 }

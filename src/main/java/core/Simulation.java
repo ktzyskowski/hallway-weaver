@@ -120,7 +120,7 @@ public final class Simulation extends JFrame {
           // Thread.sleep(long) here to give the
           // CPU some breathing room
           try {
-            Thread.sleep(1000);
+            Thread.sleep(100);
           } catch (InterruptedException e) {}
         }
       }
@@ -301,14 +301,14 @@ public final class Simulation extends JFrame {
    */
   public static void main(String[] args) {
     // create and prepare planning agent
-    PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.9, 10_000);
-    // KeyboardAgent agent = new KeyboardAgent();
+    //PlanningAgent agent = new QLearningAgent(0.002, 0.9, 0.95, 2_000);
+    KeyboardAgent agent = new KeyboardAgent();
 
     agent.init(); // optional line if an agent needs to prepare itself before being used
 
     // run simulation with agent
     Simulation simulation = new Simulation("Hallway Weaver", 5, agent);
-    // simulation.addKeyListener(agent);
+    simulation.addKeyListener(agent);
     simulation.run();
   }
 }

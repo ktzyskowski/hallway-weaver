@@ -25,7 +25,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
   // =====   Configuration   ===== //
   public static final double WORLD_HEIGHT = 60.0;
   public static final double WORLD_WIDTH = 360.0;
-  public static final int NUM_STEPS = 5;
+  public static final int NUM_STEPS = 2;
   public static final int OBSTACLE_COUNT = 100;
   public static final double OBSTACLE_SPEED = 15.0;
 
@@ -110,7 +110,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
    * Constructs a new, empty world state.
    */
   public World() {
-    this(new BodyInfo(-10, 0, 0, 0),
+    this(new BodyInfo(0, 0, 0, 0),
         World.generateRandomObstacleInfo(),
         false);
   }
@@ -124,8 +124,16 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
     Map<BodyInfo, Boolean> obstacles = new HashMap<>();
     for (int count = 0; count < OBSTACLE_COUNT; count++) {
       Vector2 velocity = new Vector2(Math.random() * 2 * Math.PI).multiply(OBSTACLE_SPEED);
-      double positionX = Math.random() * WORLD_WIDTH - WORLD_WIDTH / 2 ;
-      double positionY = Math.random() * WORLD_HEIGHT - WORLD_HEIGHT / 2 ;
+
+      double positionX = Math.random() * WORLD_WIDTH - WORLD_WIDTH / 2;
+      double positionY = Math.random() * WORLD_HEIGHT - WORLD_HEIGHT / 2;
+
+      // make sure obstacles don't appear near origin where player starts
+      while (Math.sqrt(positionX * positionX + positionY * positionY) < 10) {
+        positionX = Math.random() * WORLD_WIDTH - WORLD_WIDTH / 2;
+        positionY = Math.random() * WORLD_HEIGHT - WORLD_HEIGHT / 2;
+      }
+
       obstacles.put(new BodyInfo(positionX, positionY, velocity.x, velocity.y), false);
     }
     return obstacles;
