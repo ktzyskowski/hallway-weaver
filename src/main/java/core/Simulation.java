@@ -4,7 +4,7 @@ import core.agents.KeyboardAgent;
 import core.agents.PlanningAgent;
 import core.agents.QLearningAgent;
 import core.agents.RandomAgent;
-
+import core.agents.mcts;
 import core.agents.RightAgent;
 import core.world.World;
 import java.awt.Canvas;
@@ -23,6 +23,7 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
+import org.dyn4j.dynamics.Force;
 
 /**
  * Renders and runs the world simulation
@@ -120,7 +121,8 @@ public final class Simulation extends JFrame {
           // CPU some breathing room
           try {
             Thread.sleep(20);
-          } catch (InterruptedException e) {}
+          } catch (InterruptedException e) {
+          }
         }
       }
     };
@@ -137,9 +139,10 @@ public final class Simulation extends JFrame {
    */
   private void gameLoop() {
     // get the graphics object to render to
-    Graphics2D g = (Graphics2D)this.canvas.getBufferStrategy().getDrawGraphics();
+    Graphics2D g = (Graphics2D) this.canvas.getBufferStrategy().getDrawGraphics();
 
-    // by default, set (0, 0) to be the center of the screen with the positive x axis
+    // by default, set (0, 0) to be the center of the screen with the positive x
+    // axis
     // pointing right and the positive y axis pointing up
     this.transform(g);
 
@@ -161,7 +164,31 @@ public final class Simulation extends JFrame {
     g.setTransform(tx);
 
     // update the World
-    this.world = this.world.generateNextState(this.planningAgent.chooseAction(this.world));
+    if (this.planningAgent instanceof mcts) {
+      for (int i = 0; i < 5; i++) {
+        ((mcts) this.planningAgent).doRollout(world);
+      }
+    }
+    // for debugging
+    Force actionToBeApplied = this.planningAgent.chooseAction(this.world);
+
+    if (actionToBeApplied.equals(World.FORCE_DOWN)) {
+      System.out.println("down");
+    }
+    if (actionToBeApplied.equals(World.FORCE_UP)) {
+      System.out.println("up");
+    }
+    if (actionToBeApplied.equals(World.FORCE_LEFT)) {
+      System.out.println("left");
+    }
+    if (actionToBeApplied.equals(World.FORCE_RIGHT)) {
+      System.out.println("right");
+    }
+    if (actionToBeApplied.equals(World.FORCE_NONE)) {
+      System.out.println("none");
+    }
+
+    this.world = this.world.generateNextState(actionToBeApplied);
 
     // dispose of the graphics object
     g.dispose();
@@ -247,7 +274,8 @@ public final class Simulation extends JFrame {
     AffineTransform ot = g.getTransform();
 
     AffineTransform lt = new AffineTransform();
-    lt.translate(body.getTransform().getTranslationX() * this.scale, body.getTransform().getTranslationY() * this.scale);
+    lt.translate(body.getTransform().getTranslationX() * this.scale,
+        body.getTransform().getTranslationY() * this.scale);
     lt.rotate(body.getTransform().getRotationAngle());
     g.transform(lt);
 
@@ -269,6 +297,7 @@ public final class Simulation extends JFrame {
 
   /**
    * Returns true if the simulation is stopped.
+   * 
    * @return boolean true if stopped
    */
   public boolean isStopped() {
@@ -282,7 +311,8 @@ public final class Simulation extends JFrame {
     // set the look and feel to the system look and feel
     try {
       UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException e) {
+    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
+        | UnsupportedLookAndFeelException e) {
       e.printStackTrace();
     }
 
@@ -300,14 +330,15 @@ public final class Simulation extends JFrame {
    */
   public static void main(String[] args) {
     // create and prepare planning agent
-    PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.4, 2500);
-    //KeyboardAgent agent = new KeyboardAgent();
+    // PlanningAgent agent = new QLearningAgent(0.05, 0.9, 0.4, 2500);
+    // KeyboardAgent agent = new KeyboardAgent();
+    PlanningAgent agent = new mcts();
 
     agent.init(); // optional line if an agent needs to prepare itself before being used
 
     // run simulation with agent
     Simulation simulation = new Simulation("Hallway Weaver", 2.5, agent);
-    //simulation.addKeyListener(agent);
+    // simulation.addKeyListener(agent);
     simulation.run();
   }
 }

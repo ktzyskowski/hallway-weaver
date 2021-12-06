@@ -3,8 +3,12 @@ package core.world;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
+
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
 import org.dyn4j.dynamics.Force;
@@ -19,7 +23,7 @@ import org.dyn4j.world.listener.CollisionListenerAdapter;
  */
 public class World extends org.dyn4j.world.World<Body> implements Serializable {
 
-  // =====   Configuration   ===== //
+  // ===== Configuration ===== //
   public static final double WORLD_HEIGHT = 60.0;
   public static final double WORLD_WIDTH = 360.0;
   public static final double TIME_PER_UPDATE = 1.0;
@@ -33,19 +37,21 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
   public static final Force FORCE_RIGHT = new Force(FORCE_MAGNITUDE, 0);
   public static final Force FORCE_NONE = new Force(0, 0);
 
-  // =====   State Variables   ===== //
+  // ===== State Variables ===== //
   public boolean won;
   public final Body player;
   public final Body goal;
   public final Map<Body, Boolean> obstacles;
   public final List<Body> walls;
 
+  private Random rand;
+
   /**
    * Copies the given world state.
    *
-   * @param player the player body info
+   * @param player    the player body info
    * @param obstacles the obstacle body info and collision info
-   * @param won whether the goal has been touched by the player
+   * @param won       whether the goal has been touched by the player
    */
   private World(BodyInfo player, Map<BodyInfo, Boolean> obstacles, boolean won) {
     super();
@@ -101,6 +107,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
 
     // create the collision listeners
     this.addCollisionListener(new CollisionListener(this));
+    this.rand = new Random();
   }
 
   /**
@@ -112,6 +119,45 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
         false);
   }
 
+  // All mcts functions
+
+  public List<World> findChildren() {
+    Force[] actions = this.getActions();
+    List<World> childStates = new ArrayList<World>();
+    if (this.isTerminal()) {
+      return null;
+    }
+    for (Force action : actions) {
+      childStates.add(this.generateNextState(action));
+    }
+    return childStates;
+  }
+
+  public World findRandomChild() {
+    if (this.isTerminal()) {
+      return null;
+    }
+    Force randAction = this.getRandomForce();
+    return this.generateNextState(randAction);
+  }
+
+  public Force getRandomForce() {
+    Force[] actions = this.getActions();
+    return actions[rand.nextInt(actions.length)];
+  }
+
+  public double reward() {
+    if (!this.isTerminal()) {
+      throw new RuntimeException("Reward called on nonterminal board");
+    } else if (this.isLose()) {
+      return -1.0;
+    } else if (this.isWin()) {
+      return 1.0;
+    } else {
+      throw new RuntimeException("None of the conditionals were met.");
+    }
+  }
+
   /**
    * Return the body info of randomly generated obstacles.
    *
@@ -121,8 +167,8 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
     Map<BodyInfo, Boolean> obstacles = new HashMap<>();
     for (int count = 0; count < OBSTACLE_COUNT; count++) {
       Vector2 velocity = new Vector2(Math.random() * 2 * Math.PI).multiply(OBSTACLE_SPEED);
-      double positionX = Math.random() * WORLD_WIDTH - WORLD_WIDTH / 2 ;
-      double positionY = Math.random() * WORLD_HEIGHT - WORLD_HEIGHT / 2 ;
+      double positionX = Math.random() * WORLD_WIDTH - WORLD_WIDTH / 2;
+      double positionY = Math.random() * WORLD_HEIGHT - WORLD_HEIGHT / 2;
       obstacles.put(new BodyInfo(positionX, positionY, velocity.x, velocity.y), false);
     }
     return obstacles;
@@ -160,7 +206,8 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
   }
 
   /**
-   * Creates the successor state to this state after applying the given force to the player.
+   * Creates the successor state to this state after applying the given force to
+   * the player.
    *
    * @param action the action to perform to the player
    * @return the world after the action was performed.
@@ -169,7 +216,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
 
     // clone the world
     Map<BodyInfo, Boolean> obstacles = new HashMap<>();
-    for(Body obstacle : this.obstacles.keySet()) {
+    for (Body obstacle : this.obstacles.keySet()) {
       obstacles.put(new BodyInfo(obstacle), this.obstacles.get(obstacle));
     }
     World nextState = new World(new BodyInfo(this.player), obstacles, this.won);
@@ -207,7 +254,8 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
       Body body2 = narrowphaseCollisionData.getBody2();
 
       // check if we player and goal collided
-      if (body1 == this.world.goal && body2 == this.world.player || body1 == this.world.player && body2 == this.world.goal) {
+      if (body1 == this.world.goal && body2 == this.world.player
+          || body1 == this.world.player && body2 == this.world.goal) {
         this.world.won = true;
       }
 
@@ -272,5 +320,52 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
       body.setLinearVelocity(this.velocityX, this.velocityY);
       return body;
     }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == this) {
+      return true;
+    } else if (!(o instanceof World)) {
+      return false;
+    } else {
+      World that = (World) o;
+
+      boolean samePlayers = this.player.getWorldCenter().equals(that.player.getWorldCenter())
+          && this.player.getLinearVelocity().equals(that.player.getLinearVelocity());
+
+      boolean sameObstacles = true;
+      Iterator<Body> thisObstacles = this.obstacles.keySet().iterator();
+      Iterator<Body> thatObstacles = this.obstacles.keySet().iterator();
+      while (thisObstacles.hasNext()) {
+        Body thisObstacle = thisObstacles.next();
+        Body thatObstacle = thatObstacles.next();
+        if (!thisObstacle.getWorldCenter().equals(thatObstacle.getWorldCenter())
+            || !thisObstacle.getLinearVelocity().equals(thatObstacle.getLinearVelocity())) {
+          sameObstacles = false;
+          break;
+        }
+      }
+
+      boolean sameStatus = false;
+      if (this.isWin() && !that.isWin()) {
+        sameStatus = true;
+      } else if (this.isLose() && that.isLose()) {
+        sameStatus = true;
+      } else if (!this.isTerminal() && !that.isTerminal()) {
+        sameStatus = true;
+      }
+
+      return samePlayers && sameObstacles && sameStatus;
+    }
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        this.won,
+        this.player.getWorldCenter(),
+        this.player.getLinearVelocity(),
+        this.obstacles.hashCode());
   }
 }
