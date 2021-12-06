@@ -1,10 +1,14 @@
 package core.agents;
 
+import core.Simulation;
 import core.world.World;
+import java.awt.event.WindowEvent;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import javax.swing.JFrame;
+import javax.swing.WindowConstants;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
 import org.dyn4j.dynamics.Force;
@@ -20,17 +24,19 @@ public class QLearningAgent implements PlanningAgent {
 
   private final double alpha;    // learning rate
   private final double gamma;    // discount factor
-  private final double epsilon;  // exploitation factor
+  private double epsilon;  // exploitation factor
   private final double episodes; // number of training episodes
 
-  private static final int REWARD_NEUTRAL = -1;     // reward for surviving an action
-  private static final int REWARD_WIN     =  1_000; // reward for reaching the goal state
-  private static final int REWARD_LOSE    = -1_000; // reward for touching an obstacle
+  private static final int REWARD_NEUTRAL   = -1;     // reward for surviving an action
+  private static final int REWARD_WIN       =  20_000; // reward for reaching the goal state
+  private static final int REWARD_LOSE      = -100;   // reward for touching an obstacle
+  private static final int MILESTONE_REWARD =  100;     // reward for reaching a milestone
+  private static final double OBSTACLE_FACTOR = 1.0;  // punishment for number of obstacles in close proximity
 
-  private static final int    NUM_RAYS = 30;  // number of radar rays
-  private static final double LEN_RAYS = 10.0; // length of each radar ray
+  private static final int    NUM_RAYS = 200;  // number of radar rays
+  private static final double LEN_RAYS = 6.9; // length of each radar ray
 
-  private final Map<String, Double> weights;
+  public final Map<String, Double> weights;
 
   /**
    * Creates a new Q learning agent from starting weights.
@@ -82,7 +88,22 @@ public class QLearningAgent implements PlanningAgent {
   public void init() {
     for (int episode = 1; episode <= this.episodes; episode++) {
       System.out.printf("Start episode %d%n", episode);
+
+      if (episode < 2_500) {
+        this.epsilon = 0.0;
+      } else {
+        this.epsilon = 0.9;
+      }
+
       this.train();
+
+
+
+      if (episode % 100 == 0) {
+        Simulation simulation = new Simulation(String.format("Episode %d", episode), 5, this);
+        simulation.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        simulation.run();
+      }
 
       // print weights
 //      for (String key : this.weights.keySet()) {
@@ -177,7 +198,7 @@ public class QLearningAgent implements PlanningAgent {
   private void train() {
     World state = new World();
     int step = 0;
-    while (!state.isTerminal()) {
+    while (!state.isTerminal() && step < 250) {
       step++;
 
       // choose an action, either random (exploration) or from our policy (exploitation)
@@ -194,17 +215,36 @@ public class QLearningAgent implements PlanningAgent {
       // observe the changes and find the next state
       World nextState = state.generateNextState(action);
 
+      // does not matter what action is, since we ignore it
+      Map<String, Double> nextFeatures = extractFeatures(nextState, action);
+
       // calculate the reward from the next state
       int reward = REWARD_NEUTRAL;
 
-      // we want to reward going to the right towards the goal
-      if (action == World.FORCE_RIGHT)
-        reward *= -1;
+      if (action == World.FORCE_NONE) {
+        reward = 0;
+      } else if (action == World.FORCE_UP || action == World.FORCE_DOWN) {
+        reward = 1;
+      }
 
+      if (nextState.milestones.size() > state.milestones.size()) {
+        reward = MILESTONE_REWARD;
+      }
       if (nextState.isWin()) {
         reward = REWARD_WIN;
+        System.out.println(" won :> ?");
       } else if (nextState.isLose()) {
-        reward = -REWARD_LOSE;
+        reward = REWARD_LOSE;
+      }
+
+      // punish being close to obstacles
+      for (String key : nextFeatures.keySet()) {
+        if (key.startsWith("ray.s")) {
+          double dist = nextFeatures.get(key); // distance to obstacle, if any, a number between 0 and 1
+          if (dist < 0.9) {
+            reward -= Math.sqrt(dist) * OBSTACLE_FACTOR;
+          }
+        }
       }
 
       // update our weights to reflect a new and improved Q function
@@ -213,6 +253,7 @@ public class QLearningAgent implements PlanningAgent {
     }
 
     System.out.printf("> took %d samples%n", step);
+    System.out.println(state.isWin());
     if (state.isWin()) {
       System.out.println("> won :)");
     } else {

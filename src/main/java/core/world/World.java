@@ -3,11 +3,13 @@ package core.world;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
 import org.dyn4j.dynamics.Force;
@@ -25,9 +27,10 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
   // =====   Configuration   ===== //
   public static final double WORLD_HEIGHT = 60.0;
   public static final double WORLD_WIDTH = 360.0;
-  public static final int NUM_STEPS = 2;
-  public static final int OBSTACLE_COUNT = 100;
-  public static final double OBSTACLE_SPEED = 15.0;
+  public static final int MILESTONE_DISTANCE = 10;
+  public static final int NUM_STEPS = 3;
+  public static final int OBSTACLE_COUNT = 60;
+  public static final double OBSTACLE_SPEED = 10.0;
 
   public static final double FORCE_MAGNITUDE = 2_000.0;
   public static final Force FORCE_UP = new Force(0, FORCE_MAGNITUDE);
@@ -38,28 +41,37 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
 
   // =====   State Variables   ===== //
   public boolean won;
+  public int score;
   public final Body player;
   public final Body goal;
   public final Map<Body, Boolean> obstacles;
-  public final List<Body> walls;
+  public final ArrayList<Body> walls;
+  public final Set<Integer> milestones;
 
   /**
    * Copies the given world state.
    *
-   * @param player the player body info
+   * @param player    the player body info
    * @param obstacles the obstacle body info and collision info
-   * @param won whether the goal has been touched by the player
+   * @param won       whether the goal has been touched by the player
+   * @param score     the score of the world
    */
-  private World(BodyInfo player, Map<BodyInfo, Boolean> obstacles, boolean won) {
+  private World(BodyInfo player, Map<BodyInfo, Boolean> obstacles, boolean won, int score, Set<Integer> milestones) {
     super();
 
     // zero gravity, since the simulation is top-down
     this.setGravity(ZERO_GRAVITY);
 
+    // clone the score
+    this.score = score;
+
+    // clone the milestones
+    this.milestones = new HashSet<>(milestones);
+
     // create the player
     this.player = player.toBody();
     this.player.addFixture(Geometry.createCircle(1.0), 1.0, 0.0, 1.0);
-    this.player.setLinearDamping(2);
+    this.player.setLinearDamping(3);
     this.player.setMass(MassType.NORMAL);
     this.addBody(this.player);
 
@@ -79,7 +91,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
     goal.addFixture(Geometry.createRectangle(1, WORLD_HEIGHT), 1.0, 0.0, 0.0);
     goal.setMass(MassType.INFINITE);
     goal.translate(WORLD_WIDTH / 2.0, 0);
-    this.addBody(goal);
+    this.addBody(this.goal);
 
     // create the walls
     this.walls = new ArrayList<>();
@@ -110,9 +122,9 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
    * Constructs a new, empty world state.
    */
   public World() {
-    this(new BodyInfo(0, 0, 0, 0),
-        World.generateRandomObstacleInfo(),
-        false);
+    this(new BodyInfo(-WORLD_WIDTH / 2 + 10, 0, 0, 0),
+        World.generateRandomObstacleInfo(new Vector2(-WORLD_WIDTH / 2 + 10, 0)),
+        false, 0, new HashSet<>());
   }
 
   /**
@@ -120,7 +132,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
    *
    * @return the body info of the obstacles
    */
-  public static Map<BodyInfo, Boolean> generateRandomObstacleInfo() {
+  public static Map<BodyInfo, Boolean> generateRandomObstacleInfo(Vector2 stayAwayPoint) {
     Map<BodyInfo, Boolean> obstacles = new HashMap<>();
     for (int count = 0; count < OBSTACLE_COUNT; count++) {
       Vector2 velocity = new Vector2(Math.random() * 2 * Math.PI).multiply(OBSTACLE_SPEED);
@@ -129,7 +141,7 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
       double positionY = Math.random() * WORLD_HEIGHT - WORLD_HEIGHT / 2;
 
       // make sure obstacles don't appear near origin where player starts
-      while (Math.sqrt(positionX * positionX + positionY * positionY) < 10) {
+      while (Math.sqrt((positionX - stayAwayPoint.x) * (positionX - stayAwayPoint.x) + (positionY - stayAwayPoint.y) * (positionY - stayAwayPoint.y)) < 10) {
         positionX = Math.random() * WORLD_WIDTH - WORLD_WIDTH / 2;
         positionY = Math.random() * WORLD_HEIGHT - WORLD_HEIGHT / 2;
       }
@@ -183,11 +195,30 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
     for(Body obstacle : this.obstacles.keySet()) {
       obstacles.put(new BodyInfo(obstacle), this.obstacles.get(obstacle));
     }
-    World nextState = new World(new BodyInfo(this.player), obstacles, this.won);
+
+    World nextState = new World(new BodyInfo(this.player), obstacles, this.won, this.score, this.milestones);
 
     // apply the update and update the world
     nextState.player.applyForce(action);
     nextState.step(NUM_STEPS);
+
+    // update the milestones if new ones were reached
+    if (nextState.player.getWorldCenter().x > MILESTONE_DISTANCE - WORLD_WIDTH / 2) {
+      nextState.milestones.add((int) (nextState.player.getWorldCenter().x) / MILESTONE_DISTANCE);
+    }
+
+    // update the score of the new word accordingly
+    if (action == World.FORCE_LEFT) {
+      nextState.score -= 1;
+    } else if (action == World.FORCE_RIGHT) {
+      nextState.score += 1;
+    }
+
+    if (nextState.isWin()) {
+      nextState.score += 1_000;
+    } else if (nextState.isLose()) {
+      nextState.score -= 1_000;
+    }
 
     return nextState;
   }
@@ -218,8 +249,20 @@ public class World extends org.dyn4j.world.World<Body> implements Serializable {
       Body body2 = narrowphaseCollisionData.getBody2();
 
       // check if we player and goal collided
-      if (body1 == this.world.goal && body2 == this.world.player || body1 == this.world.player && body2 == this.world.goal) {
-        this.world.won = true;
+//      if (body1 == this.world.goal && body2 == this.world.player || body1 == this.world.player && body2 == this.world.goal) {
+//        this.world.won = true;
+//        System.out.println("! collided with goal !");
+//        return super.collision(narrowphaseCollisionData);
+//      }
+
+      if (body1 == this.world.goal) {
+        if (body2 == this.world.player) {
+          this.world.won = true;
+        }
+      } else if (body2 == this.world.goal) {
+        if (body1 == this.world.player) {
+          this.world.won = true;
+        }
       }
 
       // check if the player collided with an obstacle

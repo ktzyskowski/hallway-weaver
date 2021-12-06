@@ -21,6 +21,6 @@ public interface PlanningAgent {
    */
   default void init() {
     // by default, do nothing
-    System.out.println("No extra initialization");
+    System.out.println("> No extra initialization");
   }
 }

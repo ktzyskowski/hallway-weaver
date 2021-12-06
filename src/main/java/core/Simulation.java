@@ -114,15 +114,16 @@ public final class Simulation extends JFrame {
       public void run() {
         // perform an infinite loop stopped
         // render as fast as possible
-        while (!isStopped() && !world.isTerminal()) {
+        do {
           gameLoop();
-          // you could add a Thread.yield(); or
-          // Thread.sleep(long) here to give the
-          // CPU some breathing room
+
+          // wait a bit before next render
           try {
-            Thread.sleep(100);
-          } catch (InterruptedException e) {}
-        }
+            Thread.sleep(50);
+          } catch (InterruptedException e) {
+            // do nothing
+          }
+        } while (!isStopped() && !world.isTerminal());
       }
     };
     // set the game loop thread to a daemon thread so that
@@ -301,14 +302,16 @@ public final class Simulation extends JFrame {
    */
   public static void main(String[] args) {
     // create and prepare planning agent
-    //PlanningAgent agent = new QLearningAgent(0.002, 0.9, 0.95, 2_000);
-    KeyboardAgent agent = new KeyboardAgent();
+    QLearningAgent agent = new QLearningAgent(0.002, 0.98, 0.95, 1_000);
+    //KeyboardAgent agent = new KeyboardAgent();
 
+    //QLearningAgent agent = WeightDownloader.load("weights.txt");
     agent.init(); // optional line if an agent needs to prepare itself before being used
 
     // run simulation with agent
     Simulation simulation = new Simulation("Hallway Weaver", 5, agent);
-    simulation.addKeyListener(agent);
+    //simulation.addKeyListener(agent);
     simulation.run();
+    WeightDownloader.save(agent, "weights.txt");
   }
 }
